@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Sound Design Engine</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d0d0f;
+      --surface: #17181c;
+      --border: #2a2b30;
+      --accent: #a259ff;
+      --accent2: #00e5ff;
+      --text: #e8e8f0;
+      --muted: #7a7a8c;
+      --card: #1c1d22;
+      --success: #00c896;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 0 0 60px;
+    }
+
+    header {
+      background: linear-gradient(135deg, #1a0533 0%, #0d0d0f 60%);
+      border-bottom: 1px solid var(--border);
+      padding: 28px 40px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .logo {
+      width: 40px; height: 40px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+
+    header h1 { font-size: 1.3rem; font-weight: 700; letter-spacing: -0.02em; }
+    header p { font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
+
+    .container { max-width: 900px; margin: 0 auto; padding: 40px 24px 0; }
+
+    .search-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px;
+      margin-bottom: 36px;
+    }
+
+    .search-card label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    .input-row { display: flex; gap: 12px; }
+
+    #prompt {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-size: 1rem;
+      padding: 14px 18px;
+      outline: none;
+      transition: border-color .2s;
+    }
+    #prompt:focus { border-color: var(--accent); }
+    #prompt::placeholder { color: var(--muted); }
+
+    button#search-btn {
+      background: linear-gradient(135deg, var(--accent), #7c3aed);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 0 28px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .2s, transform .1s;
+      white-space: nowrap;
+    }
+    button#search-btn:hover { opacity: 0.9; }
+    button#search-btn:active { transform: scale(0.97); }
+    button#search-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .options-row {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      margin-top: 18px;
+    }
+
+    .topk-label { font-size: 0.85rem; color: var(--muted); white-space: nowrap; }
+    .topk-label span { color: var(--accent); font-weight: 700; }
+
+    input[type=range] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 140px;
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      outline: none;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+    }
+
+    .version-toggle {
+      display: flex;
+      gap: 6px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 4px;
+      margin-left: auto;
+    }
+    .version-toggle button {
+      background: none;
+      border: none;
+      color: var(--muted);
+      padding: 5px 12px;
+      border-radius: 5px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s, color .15s;
+    }
+    .version-toggle button.active {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .status {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.9rem;
+      padding: 16px 0;
+      display: none;
+    }
+
+    .error-msg {
+      background: #2d1515;
+      border: 1px solid #5a2222;
+      color: #ff8080;
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin-bottom: 20px;
+      font-size: 0.88rem;
+      display: none;
+    }
+
+    .results-header {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+    .results-header h2 { font-size: 1rem; font-weight: 700; }
+    .results-header .meta { font-size: 0.8rem; color: var(--muted); }
+
+    .results-grid { display: flex; flex-direction: column; gap: 14px; }
+
+    .preset-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px 22px;
+      transition: border-color .2s;
+    }
+    .preset-card:hover { border-color: var(--accent); }
+
+    .card-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .rank-badge {
+      min-width: 28px; height: 28px;
+      border-radius: 7px;
+      background: linear-gradient(135deg, var(--accent), #7c3aed);
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: 800;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .preset-name { font-size: 1rem; font-weight: 700; line-height: 1.2; }
+    .preset-meta {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-top: 3px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .score-pill {
+      background: rgba(162,89,255,0.15);
+      border: 1px solid rgba(162,89,255,0.35);
+      color: var(--accent);
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+    .tag {
+      font-size: 0.72rem;
+      padding: 3px 9px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .tag.family { border-color: #00e5ff44; color: var(--accent2); }
+    .tag.genre { border-color: #a259ff44; color: var(--accent); }
+
+    .device-chain {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+    .device { 
+      font-size: 0.75rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      padding: 4px 10px;
+      border-radius: 6px;
+      color: var(--text);
+    }
+    .chain-arrow { color: var(--muted); font-size: 0.7rem; }
+
+    .breakdown {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+      gap: 8px;
+    }
+
+    .breakdown-item {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+    }
+    .breakdown-item .dim-name {
+      font-size: 0.68rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 4px;
+    }
+    .breakdown-item .dim-val {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .bar-wrap { 
+      height: 3px; 
+      background: var(--border); 
+      border-radius: 2px; 
+      margin-top: 5px; 
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      border-radius: 2px;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      transition: width .6s ease;
+    }
+
+    .attrs {
+      display: flex;
+      gap: 14px;
+      margin-top: 12px;
+    }
+    .attr-item { font-size: 0.78rem; color: var(--muted); }
+    .attr-item strong { color: var(--text); }
+
+    /* v1 simple card */
+    .simple-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .simple-card .preset-name { font-size: 0.95rem; }
+
+    .empty {
+      text-align: center;
+      color: var(--muted);
+      padding: 60px 0;
+      font-size: 0.9rem;
+    }
+    .empty .icon { font-size: 2.5rem; margin-bottom: 12px; }
+
+    @media (max-width: 600px) {
+      header { padding: 20px; }
+      .container { padding: 24px 16px 0; }
+      .input-row { flex-direction: column; }
+      button#search-btn { padding: 14px; }
+      .options-row { flex-wrap: wrap; }
+      .version-toggle { margin-left: 0; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🎛</div>
+  <div>
+    <h1>AI Sound Design Engine</h1>
+    <p>Natural language preset retrieval for Ableton Live</p>
+  </div>
+</header>
+
+<div class="container">
+  <div class="search-card">
+    <label for="prompt">Describe your sound</label>
+    <div class="input-row">
+      <input id="prompt" type="text" placeholder="e.g. warm dreamy pad for neo soul…" autocomplete="off" />
+      <button id="search-btn" onclick="search()">Find Presets</button>
+    </div>
+    <div class="options-row">
+      <span class="topk-label">Results: <span id="topk-val">5</span></span>
+      <input id="topk" type="range" min="1" max="20" value="5"
+             oninput="document.getElementById('topk-val').textContent=this.value" />
+      <div class="version-toggle">
+        <button id="btn-v1" onclick="setVersion('v1')">v1</button>
+        <button id="btn-v2" class="active" onclick="setVersion('v2')">v2 Enhanced</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="error" class="error-msg"></div>
+  <div id="status" class="status">Searching presets…</div>
+  <div id="results"></div>
+</div>
+
+<script>
+  let apiVersion = 'v2';
+
+  function setVersion(v) {
+    apiVersion = v;
+    document.getElementById('btn-v1').classList.toggle('active', v === 'v1');
+    document.getElementById('btn-v2').classList.toggle('active', v === 'v2');
+  }
+
+  document.getElementById('prompt').addEventListener('keydown', e => {
+    if (e.key === 'Enter') search();
+  });
+
+  async function search() {
+    const prompt = document.getElementById('prompt').value.trim();
+    if (!prompt) return;
+
+    const topK = parseInt(document.getElementById('topk').value);
+    const btn = document.getElementById('search-btn');
+    const statusEl = document.getElementById('status');
+    const errorEl = document.getElementById('error');
+    const resultsEl = document.getElementById('results');
+
+    btn.disabled = true;
+    statusEl.style.display = 'block';
+    errorEl.style.display = 'none';
+    resultsEl.innerHTML = '';
+
+    const endpoint = apiVersion === 'v2' ? '/v2/generate' : '/generate';
+    const body = apiVersion === 'v2'
+      ? { prompt, top_k: topK }
+      : { prompt, top_k: topK };
+
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `HTTP ${res.status}`);
+      }
+
+      const data = await res.json();
+      statusEl.style.display = 'none';
+
+      if (apiVersion === 'v2') {
+        renderV2(data, resultsEl);
+      } else {
+        renderV1(data, resultsEl);
+      }
+    } catch (e) {
+      statusEl.style.display = 'none';
+      errorEl.textContent = '⚠ ' + e.message;
+      errorEl.style.display = 'block';
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  function renderV2(data, el) {
+    const results = data.results || [];
+    const meta = data.metadata || {};
+
+    if (!results.length) {
+      el.innerHTML = '<div class="empty"><div class="icon">🔍</div>No presets found. Try a different prompt.</div>';
+      return;
+    }
+
+    const header = document.createElement('div');
+    header.className = 'results-header';
+    header.innerHTML = `
+      <h2>Recommended Presets</h2>
+      <span class="meta">${meta.results_returned || results.length} of ${meta.total_presets_searched || '?'} searched · top score ${(meta.top_score || 0).toFixed(1)}</span>
+    `;
+    el.appendChild(header);
+
+    const grid = document.createElement('div');
+    grid.className = 'results-grid';
+
+    const maxScore = meta.top_score || 1;
+
+    results.forEach(r => {
+      const bd = r.breakdown || {};
+      const bdKeys = Object.keys(bd);
+      const bdMax = Math.max(...Object.values(bd).map(v => parseFloat(v) || 0), 0.01);
+
+      const card = document.createElement('div');
+      card.className = 'preset-card';
+
+      const chain = (r.device_chain || []).map((d, i, arr) =>
+        `<span class="device">${d}</span>${i < arr.length-1 ? '<span class="chain-arrow">›</span>' : ''}`
+      ).join('');
+
+      const attrs = r.attributes ? Object.entries(r.attributes).map(([k,v]) =>
+        `<span class="attr-item"><strong>${(parseFloat(v)*100).toFixed(0)}%</strong> ${k}</span>`
+      ).join('') : '';
+
+      const bdHTML = bdKeys.map(k => {
+        const val = parseFloat(bd[k]) || 0;
+        const pct = Math.min(100, (val / bdMax) * 100);
+        return `
+          <div class="breakdown-item">
+            <div class="dim-name">${k}</div>
+            <div class="dim-val">${val.toFixed(2)}</div>
+            <div class="bar-wrap"><div class="bar-fill" style="width:${pct}%"></div></div>
+          </div>`;
+      }).join('');
+
+      card.innerHTML = `
+        <div class="card-top">
+          <div style="display:flex;align-items:flex-start;gap:12px;">
+            <div class="rank-badge">#${r.rank}</div>
+            <div>
+              <div class="preset-name">${r.preset_name || r.preset_id}</div>
+              <div class="preset-meta">
+                <span>${r.preset_id}</span>
+                ${r.family ? `<span>·</span><span>${r.family}</span>` : ''}
+                ${r.genre ? `<span>·</span><span>${r.genre}</span>` : ''}
+              </div>
+            </div>
+          </div>
+          <div class="score-pill">${(r.score || 0).toFixed(1)} pts</div>
+        </div>
+        ${chain ? `<div class="device-chain">${chain}</div>` : ''}
+        ${attrs ? `<div class="attrs">${attrs}</div>` : ''}
+        ${bdHTML ? `<div class="breakdown" style="margin-top:14px">${bdHTML}</div>` : ''}
+      `;
+
+      grid.appendChild(card);
+    });
+
+    el.appendChild(grid);
+  }
+
+  function renderV1(data, el) {
+    const presets = data.recommended_presets || [];
+
+    if (!presets.length) {
+      el.innerHTML = '<div class="empty"><div class="icon">🔍</div>No presets found. Try a different prompt.</div>';
+      return;
+    }
+
+    const header = document.createElement('div');
+    header.className = 'results-header';
+    header.innerHTML = `<h2>Recommended Presets</h2><span class="meta">${data.count || presets.length} results</span>`;
+    el.appendChild(header);
+
+    const grid = document.createElement('div');
+    grid.className = 'results-grid';
+
+    presets.forEach((p, i) => {
+      const card = document.createElement('div');
+      card.className = 'simple-card';
+      const name = p.preset_name || p.name || p.preset_id || p.id || JSON.stringify(p);
+      card.innerHTML = `
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div class="rank-badge">#${i+1}</div>
+          <span class="preset-name">${name}</span>
+        </div>
+        ${p.score !== undefined ? `<div class="score-pill">${parseFloat(p.score).toFixed(1)} pts</div>` : ''}
+      `;
+      grid.appendChild(card);
+    });
+
+    el.appendChild(grid);
+  }
+</script>
+</body>
+</html>

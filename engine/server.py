@@ -4,6 +4,7 @@ import logging
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 
 from engine.config import load_genres, load_sound_families, load_style_clusters
 from engine.models import (
@@ -37,8 +38,14 @@ app.add_middleware(
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 
-@app.get("/", response_model=HealthResponse)
+@app.get("/", include_in_schema=False)
 def root():
+    """Serve the web UI."""
+    return FileResponse("static/index.html")
+
+
+@app.get("/health", response_model=HealthResponse)
+def health():
     """Health check — also reports how many presets are loaded."""
     try:
         count = len(load_presets())
