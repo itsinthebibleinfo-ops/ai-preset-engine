@@ -30,7 +30,7 @@
 inlets  = 1;
 outlets = 3;
 
-var API_HOST = "http://127.0.0.1:8000";
+var API_HOST = "https://ai-preset-engine.onrender.com";
 var API_PATH = "/api/retrieve";
 var DEFAULT_TOP_K = 3;
 
@@ -84,7 +84,7 @@ function init() {
 function checkServer() {
     try {
         var req = new XMLHttpRequest();
-        req.open("GET", API_HOST + "/", true);
+        req.open("GET", API_HOST + "/health", true);
         req.onreadystatechange = function () {
             if (req.readyState === 4) {
                 if (req.status === 200) {
