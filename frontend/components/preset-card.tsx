@@ -256,18 +256,14 @@ export function PresetCard({ preset, index }: PresetCardProps) {
                     <span className="text-lg font-semibold tabular-nums text-foreground">
                       {preset.attributes.attack_ms}
                     </span>
-                    <span className="ml-1 text-xs text-muted-foreground">
-                      ms
-                    </span>
+                    <span className="ml-1 text-xs text-muted-foreground">ms</span>
                     <p className="text-xs text-muted-foreground">Attack</p>
                   </div>
                   <div className="text-center">
                     <span className="text-lg font-semibold tabular-nums text-foreground">
                       {preset.attributes.release_ms}
                     </span>
-                    <span className="ml-1 text-xs text-muted-foreground">
-                      ms
-                    </span>
+                    <span className="ml-1 text-xs text-muted-foreground">ms</span>
                     <p className="text-xs text-muted-foreground">Release</p>
                   </div>
                 </div>

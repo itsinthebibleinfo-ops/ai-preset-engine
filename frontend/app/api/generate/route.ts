@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 
-// For demo purposes, we'll return mock data that matches the API structure
-// In production, this would proxy to the Python backend
-
+// Mock presets for demo - in production, proxy to Python backend via NEXT_PUBLIC_API_BASE_URL
 const mockPresets = [
   {
     rank: 1,
@@ -101,13 +99,7 @@ const mockPresets = [
       mood: 0.5,
       provenance: 0.5,
     },
-    device_chain: [
-      "Wavetable",
-      "Chorus-Ensemble",
-      "Hybrid Reverb",
-      "EQ Eight",
-      "Utility",
-    ],
+    device_chain: ["Wavetable", "Chorus-Ensemble", "Hybrid Reverb", "EQ Eight", "Utility"],
     attributes: {
       brightness: 0.64,
       warmth: 0.54,
@@ -146,13 +138,7 @@ const mockPresets = [
       mood: 0.5,
       provenance: 0.0,
     },
-    device_chain: [
-      "Wavetable",
-      "Hybrid Reverb",
-      "Echo",
-      "Auto Filter",
-      "Utility",
-    ],
+    device_chain: ["Wavetable", "Hybrid Reverb", "Echo", "Auto Filter", "Utility"],
     attributes: {
       brightness: 0.25,
       warmth: 0.51,
@@ -222,15 +208,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Prompt is required" }, { status: 400 })
     }
 
+    // In production, proxy to Python backend:
+    // const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000"
+    // const response = await fetch(`${apiBase}/v2/generate`, { ... })
+
     // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 800))
+    await new Promise((resolve) => setTimeout(resolve, 600))
 
     // Return mock response matching the v2/generate endpoint
     return NextResponse.json({
       query: {
         raw: prompt,
         parsed_family: "pad",
-        parsed_genre: prompt.includes("rnb") ? "rnb" : null,
+        parsed_genre: prompt.toLowerCase().includes("rnb") ? "rnb" : null,
         parsed_tags: prompt.split(" ").filter((w: string) => w.length > 2),
         parsed_moods: [],
         style_cluster_hints: prompt.split(" "),
@@ -243,9 +233,6 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch {
-    return NextResponse.json(
-      { error: "Failed to process request" },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: "Failed to process request" }, { status: 500 })
   }
 }
