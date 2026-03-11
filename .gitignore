@@ -1,0 +1,40 @@
+ 
+# datasets and large audio
+datasets/
+*.tar
+*.wav
+*.mp3
+*.aiff
+*.flac
+*.zip
+*.tfrecord
+
+# ML model files
+*.pt
+*.pth
+*.ckpt
+
+# Python
+venv/
+.env
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# Node
+node_modules/
+
+# macOS
+.DS_Store
+
+# build artifacts
+dist/
+build/
+*.spec
+
+# testing
+.pytest_cache/
+
+# runtime
+.engine.pid
