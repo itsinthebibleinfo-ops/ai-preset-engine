@@ -25,13 +25,17 @@
  *   2: score breakdown   (connect to param display, optional)
  */
 
-// ── Configuration ────────────────────────────────────────────────────────────
+// ── Outlet declaration — MUST be first, in global scope ──────────────────────
+// Max reads these after script execution completes and creates outlet ports.
+// Never call outlet() during global scope execution — ports don't exist yet.
 
 inlets  = 1;
 outlets = 3;
 
-var API_HOST = "https://ai-preset-engine.onrender.com";
-var API_PATH = "/api/retrieve";
+// ── Configuration ────────────────────────────────────────────────────────────
+
+var API_HOST      = "https://ai-preset-engine.onrender.com";
+var API_PATH      = "/api/retrieve";
 var DEFAULT_TOP_K = 3;
 
 // ── State ────────────────────────────────────────────────────────────────────
@@ -42,7 +46,6 @@ var lastResult  = null;   // stores the most recent top result for "apply"
 
 // ── Parameter name mapping ───────────────────────────────────────────────────
 // Maps the simplified param names in our preset DB to Ableton's internal names.
-// Extend per device as needed.
 
 var PARAM_MAP = {
     "Wavetable": {
@@ -69,17 +72,50 @@ var PARAM_MAP = {
     }
 };
 
+// ── Safe outlet helper ────────────────────────────────────────────────────────
+// Always use safeOutlet() instead of outlet() directly.
+//
+// WHY: In Max JS, outlet ports only exist after the script finishes its
+// initial execution pass. Calling outlet() during global scope execution
+// or before live.thisdevice fires causes "bad outlet index N" errors.
+// safeOutlet() guards against this at every call site.
+//
+// Max JS runs old SpiderMonkey — no spread operator, no Function.apply on
+// builtins — so we dispatch by argument count.
+
+function safeOutlet(idx, a, b, c) {
+    if (idx < 0 || idx >= outlets) {
+        post("[AI-Preset] safeOutlet: index " + idx +
+             " out of range (outlets=" + outlets + ")\n");
+        return;
+    }
+    if (arguments.length === 1) { outlet(idx); }
+    else if (arguments.length === 2) { outlet(idx, a); }
+    else if (arguments.length === 3) { outlet(idx, a, b); }
+    else { outlet(idx, a, b, c); }
+}
+
+// ── Startup banner ────────────────────────────────────────────────────────────
+// Use ONLY post() here — NEVER outlet() at load time.
+// Outlets do not exist until after this script finishes executing.
+
+post("[AI-Preset] ============================================\n");
+post("[AI-Preset] retrieve_and_apply.js v4.2 loaded\n");
+post("[AI-Preset] Outlets: 0=status  1=result data  2=score breakdown\n");
+post("[AI-Preset] Commands: bang | generate <text> | apply\n");
+post("[AI-Preset] ============================================\n");
+
 // ── Initialization ───────────────────────────────────────────────────────────
 // Called when live.thisdevice sends a bang (device is fully loaded).
+// Outlets are guaranteed stable at this point.
 
 function init() {
     deviceReady = true;
-    post("retrieve_and_apply: device initialized, checking server...\n");
+    post("[AI-Preset] init: device ready, checking server...\n");
     checkServer();
 }
 
 // ── Server health check ──────────────────────────────────────────────────────
-// Pings GET / on the API to verify the server is running.
 
 function checkServer() {
     try {
@@ -90,24 +126,23 @@ function checkServer() {
                 if (req.status === 200) {
                     serverReady = true;
                     status("Ready — engine connected");
-                    post("retrieve_and_apply: server OK\n");
+                    post("[AI-Preset] server OK\n");
                 } else {
                     serverReady = false;
-                    status("⚠ Engine not running — double-click Start_Engine");
-                    post("retrieve_and_apply: server returned " + req.status + "\n");
+                    status("Engine not running — double-click Start_Engine");
+                    post("[AI-Preset] server returned " + req.status + "\n");
                 }
             }
         };
         req.send();
     } catch (e) {
         serverReady = false;
-        status("⚠ Engine not running — double-click Start_Engine");
-        post("retrieve_and_apply: server unreachable: " + e.message + "\n");
+        status("Engine not running — double-click Start_Engine");
+        post("[AI-Preset] server unreachable: " + e.message + "\n");
     }
 }
 
 // ── Generate handler ─────────────────────────────────────────────────────────
-// Receives "generate <text>" from the Max patch (via prepend generate).
 
 function generate() {
     var args = arrayfromargs(arguments);
@@ -123,13 +158,12 @@ function generate() {
         return;
     }
 
-    // If server wasn't ready before, re-check now
     if (!serverReady) {
         status("Connecting to engine...");
     } else {
         status("Querying...");
     }
-    post("retrieve_and_apply: querying \"" + text + "\"\n");
+    post("[AI-Preset] querying: " + text + "\n");
 
     var requestBody = JSON.stringify({
         prompt: text,
@@ -148,11 +182,11 @@ function generate() {
                     handleResponse(req.responseText);
                 } else if (req.status === 0) {
                     serverReady = false;
-                    status("⚠ Engine not running — double-click Start_Engine");
-                    post("retrieve_and_apply: server unreachable\n");
+                    status("Engine not running — double-click Start_Engine");
+                    post("[AI-Preset] server unreachable\n");
                 } else {
                     status("Error: HTTP " + req.status);
-                    post("retrieve_and_apply: HTTP error " + req.status + "\n");
+                    post("[AI-Preset] HTTP error " + req.status + "\n");
                 }
             }
         };
@@ -160,8 +194,8 @@ function generate() {
         req.send(requestBody);
     } catch (e) {
         serverReady = false;
-        status("⚠ Engine not running — double-click Start_Engine");
-        post("retrieve_and_apply: request failed: " + e.message + "\n");
+        status("Engine not running — double-click Start_Engine");
+        post("[AI-Preset] request failed: " + e.message + "\n");
     }
 }
 
@@ -172,18 +206,16 @@ function handleResponse(responseText) {
         var data = JSON.parse(responseText);
     } catch (e) {
         status("Error: invalid JSON");
-        post("retrieve_and_apply: JSON parse error\n");
+        post("[AI-Preset] JSON parse error\n");
         return;
     }
 
-    // Check for warnings
     if (data.warnings && data.warnings.length > 0) {
         for (var i = 0; i < data.warnings.length; i++) {
-            post("retrieve_and_apply WARNING: " + data.warnings[i] + "\n");
+            post("[AI-Preset] WARNING: " + data.warnings[i] + "\n");
         }
     }
 
-    // Extract top result
     if (!data.results || data.results.length === 0) {
         status("No results found");
         lastResult = null;
@@ -193,35 +225,30 @@ function handleResponse(responseText) {
     var top = data.results[0];
     lastResult = top;
 
-    // Output status
     status("Found: " + top.preset_name + " (" + top.score.toFixed(2) + ")");
 
-    // Output result data to outlet 1 (route → message boxes)
-    // Each message is: <selector> set <value>
-    // so that route strips the selector and "set <value>" goes to message box
-    outlet(1, "preset_name", "set", top.preset_name);
-    outlet(1, "family", "set", top.family);
-    outlet(1, "style_cluster", "set", top.style_cluster);
-    outlet(1, "device_chain", "set", top.device_chain.join(", "));
-    outlet(1, "score", "set", top.score.toFixed(3));
+    // Outlet 1: result data → route object → individual message boxes
+    safeOutlet(1, "preset_name", "set", top.preset_name);
+    safeOutlet(1, "family", "set", top.family);
+    safeOutlet(1, "style_cluster", "set", top.style_cluster);
+    safeOutlet(1, "device_chain", "set", top.device_chain.join(", "));
+    safeOutlet(1, "score", "set", top.score.toFixed(3));
 
-    // Output score breakdown to outlet 2
+    // Outlet 2: score breakdown → display (optional, wiring not required)
     if (top.score_breakdown) {
         var bd = top.score_breakdown;
-        outlet(2, "family_score", bd.family.toFixed(3));
-        outlet(2, "style_score", bd.style_cluster.toFixed(3));
-        outlet(2, "tag_score", bd.tag_overlap.toFixed(3));
-        outlet(2, "attr_score", bd.attributes.toFixed(3));
-        outlet(2, "prov_score", bd.provenance_confidence.toFixed(3));
+        safeOutlet(2, "family_score", bd.family.toFixed(3));
+        safeOutlet(2, "style_score", bd.style_cluster.toFixed(3));
+        safeOutlet(2, "tag_score", bd.tag_overlap.toFixed(3));
+        safeOutlet(2, "attr_score", bd.attributes.toFixed(3));
+        safeOutlet(2, "prov_score", bd.provenance_confidence.toFixed(3));
     }
 
-    post("retrieve_and_apply: top result = " + top.preset_name +
+    post("[AI-Preset] top result: " + top.preset_name +
          " (score " + top.score.toFixed(3) + ")\n");
 }
 
 // ── Apply handler ────────────────────────────────────────────────────────────
-// Called when the user clicks the "Apply" button.
-// Uses LiveAPI to set parameters on the target device.
 
 function apply() {
     if (!deviceReady) {
@@ -230,50 +257,38 @@ function apply() {
     }
 
     if (!lastResult) {
-        status("Error: no result to apply");
+        status("Error: no result to apply — generate first");
         return;
     }
 
-    // Defer LiveAPI work off the scheduler thread
     var result = lastResult;
 
     try {
         applyParameters(result);
     } catch (e) {
         status("Error applying: " + e.message);
-        post("retrieve_and_apply: apply error: " + e.message + "\n");
+        post("[AI-Preset] apply error: " + e.message + "\n");
     }
 }
 
 // ── LiveAPI parameter application ────────────────────────────────────────────
-// Finds the target device on the current track and sets parameter values.
-//
-// MVP: applies to the first device matching the target name (e.g. "Wavetable").
-// Does NOT instantiate new devices.
 
 function applyParameters(result) {
-    // Determine target device name (first in device_chain)
     var targetDeviceName = result.device_chain[0];
     if (!targetDeviceName) {
         status("Error: no target device in result");
         return;
     }
 
-    // Get parameter values for the target device
     var params = result.parameters[targetDeviceName];
     if (!params) {
         status("Error: no parameters for " + targetDeviceName);
         return;
     }
 
-    // Get the parameter name mapping for this device
     var mapping = PARAM_MAP[targetDeviceName] || {};
 
-    post("retrieve_and_apply: applying to " + targetDeviceName + "\n");
-
-    // ── Navigate to the current track's devices ──
-    // LiveAPI must NOT be called in global scope.
-    // This function is only called after init() confirms deviceReady.
+    post("[AI-Preset] applying to " + targetDeviceName + "\n");
 
     var trackApi = new LiveAPI("live_set view selected_track");
     var trackPath = trackApi.unquotedpath;
@@ -283,12 +298,8 @@ function applyParameters(result) {
         return;
     }
 
-    // Count devices on this track
-    var devicesApi = new LiveAPI(trackPath + " devices");
-    // LiveAPI children count approach:
     var trackForDevices = new LiveAPI(trackPath);
     var deviceCount = trackForDevices.getcount("devices");
-
     var deviceFound = false;
 
     for (var i = 0; i < deviceCount; i++) {
@@ -296,10 +307,8 @@ function applyParameters(result) {
         var deviceName = deviceApi.get("name").toString().replace(/"/g, "");
 
         if (deviceName === targetDeviceName) {
-            post("retrieve_and_apply: found " + targetDeviceName +
+            post("[AI-Preset] found " + targetDeviceName +
                  " at device index " + i + "\n");
-
-            // Apply each parameter
             applyToDevice(deviceApi, trackPath + " devices " + i,
                           params, mapping);
             deviceFound = true;
@@ -309,7 +318,7 @@ function applyParameters(result) {
 
     if (!deviceFound) {
         status("Error: " + targetDeviceName + " not found on track");
-        post("retrieve_and_apply: device not found on selected track\n");
+        post("[AI-Preset] device not found on selected track\n");
         return;
     }
 
@@ -319,24 +328,21 @@ function applyParameters(result) {
 // ── Set individual parameters on a device ────────────────────────────────────
 
 function applyToDevice(deviceApi, devicePath, params, mapping) {
-    // Get parameter count
     var paramCount = deviceApi.getcount("parameters");
 
     for (var key in params) {
         if (!params.hasOwnProperty(key)) continue;
 
-        var value = params[key];
-        var abletonName = mapping[key] || key;  // fallback to raw name
+        var value      = params[key];
+        var abletonName = mapping[key] || key;
 
-        // Search for the matching parameter
         for (var j = 0; j < paramCount; j++) {
-            var paramApi = new LiveAPI(devicePath + " parameters " + j);
+            var paramApi  = new LiveAPI(devicePath + " parameters " + j);
             var paramName = paramApi.get("name").toString().replace(/"/g, "");
 
             if (paramName === abletonName) {
                 paramApi.set("value", value);
-                post("retrieve_and_apply:   set " + abletonName +
-                     " = " + value + "\n");
+                post("[AI-Preset]   set " + abletonName + " = " + value + "\n");
                 break;
             }
         }
@@ -344,13 +350,14 @@ function applyToDevice(deviceApi, devicePath, params, mapping) {
 }
 
 // ── Utility ──────────────────────────────────────────────────────────────────
+// status() is the only public outlet-0 writer.
+// All other code must go through safeOutlet() or status().
 
 function status(msg) {
-    outlet(0, "set", msg);
+    safeOutlet(0, "set", msg);
 }
 
 function bang() {
-    // A bang on inlet triggers init if not already done
     if (!deviceReady) {
         init();
     }

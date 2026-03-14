@@ -293,6 +293,28 @@
 					"presentation_rect" : [ 5.0, 218.0, 48.0, 20.0 ],
 					"text" : "Score:"
 				}
+			},
+			{
+				"box" : 				{
+					"comment" : "Routes score breakdown from js outlet 2",
+					"id" : "obj-22",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 6,
+					"outlettype" : [ "", "", "", "", "", "" ],
+					"patching_rect" : [ 200.0, 540.0, 390.0, 22.0 ],
+					"text" : "route family_score style_score tag_score attr_score prov_score"
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-23",
+					"maxclass" : "message",
+					"numinlets" : 2,
+					"numoutlets" : 1,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 200.0, 575.0, 390.0, 22.0 ]
+				}
 			}
 		],
 		"lines" : [
@@ -372,6 +394,18 @@
 				"patchline" : 				{
 					"source" : [ "obj-9", 4 ],
 					"destination" : [ "obj-14", 0 ]
+				}
+			},
+			{
+				"patchline" : 				{
+					"source" : [ "obj-2", 2 ],
+					"destination" : [ "obj-22", 0 ]
+				}
+			},
+			{
+				"patchline" : 				{
+					"source" : [ "obj-22", 0 ],
+					"destination" : [ "obj-23", 0 ]
 				}
 			}
 		]
